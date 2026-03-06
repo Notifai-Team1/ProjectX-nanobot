@@ -19,3 +19,4 @@ Todos incluyen análisis en español y diagramas Mermaid solicitados.
 13. [`12-secuencias-happy-path.md`](./12-secuencias-happy-path.md)
 14. [`13-api-openapi.md`](./13-api-openapi.md)
 15. [`openapi.yaml`](./openapi.yaml)
+16. [`14-arquitectura-c4.md`](./14-arquitectura-c4.md)

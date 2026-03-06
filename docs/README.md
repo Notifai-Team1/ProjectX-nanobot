@@ -12,3 +12,8 @@ Este directorio contiene la revisión detallada del código del repositorio:
 8. [`07-tool-registry.md`](./07-tool-registry.md)
 
 Todos incluyen análisis en español y diagramas Mermaid solicitados.
+9. [`08-diccionario-datos-erd.md`](./08-diccionario-datos-erd.md)
+10. [`09-adr.md`](./09-adr.md)
+11. [`10-bdd-especificaciones.md`](./10-bdd-especificaciones.md)
+12. [`11-diagramas-actividad.md`](./11-diagramas-actividad.md)
+13. [`12-secuencias-happy-path.md`](./12-secuencias-happy-path.md)

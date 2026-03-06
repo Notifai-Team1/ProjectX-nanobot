@@ -90,3 +90,58 @@ Esto permite que `Session.get_history()` trabaje siempre sobre mensajes **no con
 - El módulo separa claramente **hechos vivos** (`MEMORY.md`) de **trazabilidad cronológica** (`HISTORY.md`).
 - La consolidación es delegada al LLM, pero con un contrato fuertemente estructurado por schema.
 - Es idempotente en escritura de largo plazo cuando no hay cambios.
+
+---
+
+## Diagramas
+
+## 1) Flujo de consolidacion de memoria
+
+```mermaid
+flowchart TD
+    A[Session messages] --> B{Modo archive all}
+    B -- si --> C[Tomar todos los mensajes]
+    B -- no --> D[Tomar rango no consolidado]
+    C --> E[Construir texto para consolidacion]
+    D --> E
+    E --> F[Llamar provider con tool save memory]
+    F --> G{Tool call valida}
+    G -- no --> H[Retornar false]
+    G -- si --> I[Leer history entry y memory update]
+    I --> J[Append a HISTORY]
+    I --> K[Actualizar MEMORY]
+    J --> L[Actualizar last consolidated]
+    K --> L
+    L --> M[Retornar true]
+```
+
+## 2) Maquina de estados de memoria
+
+```mermaid
+stateDiagram-v2
+    [*] --> Idle
+    Idle --> Reading: get memory context
+    Reading --> Idle
+    Idle --> Consolidating: consolidate
+    Consolidating --> WritingHistory: hay history entry
+    Consolidating --> WritingMemory: hay memory update
+    WritingHistory --> UpdatingIndex
+    WritingMemory --> UpdatingIndex
+    UpdatingIndex --> Idle
+    Consolidating --> Failed: tool call invalida o error
+    Failed --> Idle
+```
+
+## 3) Flujo de archivos MEMORY y HISTORY
+
+```mermaid
+flowchart LR
+    A[MEMORY md actual] --> C[Prompt de consolidacion]
+    B[Mensajes de sesion] --> C
+    C --> D[Provider]
+    D --> E[history entry]
+    D --> F[memory update]
+    E --> G[HISTORY md append]
+    F --> H[MEMORY md overwrite]
+```
+

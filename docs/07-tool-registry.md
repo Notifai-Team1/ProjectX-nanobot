@@ -76,3 +76,49 @@ En runtime, `AgentLoop`:
 4. Inserta el resultado como mensaje role `tool` en el historial del turno.
 
 Así, `ToolRegistry` actúa como frontera uniforme entre decisión del modelo y side-effects reales en sistema/entorno.
+
+---
+
+## Diagramas
+
+## 1) Flujo de ejecucion de tool call
+
+```mermaid
+flowchart TD
+    A[Tool call del modelo] --> B[Ejecutar en registry]
+    B --> C{Tool registrada}
+    C -- no --> D[Retornar error de tool]
+    C -- si --> E[Validar parametros]
+    E --> F{Parametros validos}
+    F -- no --> G[Retornar error de validacion]
+    F -- si --> H[Ejecutar tool]
+    H --> I{Resultado es error}
+    I -- si --> J[Agregar sugerencia de reintento]
+    I -- no --> K[Retornar resultado]
+    J --> K
+```
+
+## 2) Maquina de estados de tool en registry
+
+```mermaid
+stateDiagram-v2
+    [*] --> Unregistered
+    Unregistered --> Registered: register
+    Registered --> Registered: register reemplazo
+    Registered --> Available: exponer definiciones
+    Available --> Executing: execute
+    Executing --> Available: exito
+    Executing --> Available: error controlado
+    Registered --> Unregistered: unregister
+```
+
+## 3) Flujo de contratos hacia provider
+
+```mermaid
+flowchart LR
+    A[Instancias de tools] --> B[Generar schema]
+    B --> C[Obtener definiciones]
+    C --> D[Llamada chat con tools]
+    D --> E[Modelo emite tool calls]
+    E --> F[Ejecutar en registry]
+```

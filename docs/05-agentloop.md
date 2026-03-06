@@ -115,3 +115,56 @@ Objetivo: evitar ruido contextual y crecimiento explosivo del historial.
 - Inyectar proveedores LLM alternativos.
 - Ajustar políticas de iteración, consolidación y prompt.
 - Añadir nuevas rutas de control (nuevos slash commands).
+
+---
+
+## Diagramas
+
+## 1) Flujo de datos por mensaje
+
+```mermaid
+flowchart TD
+    A[Mensaje entrante] --> B{Comando especial}
+    B -- stop --> C[Cancelar tareas]
+    B -- new o help --> D[Responder comando]
+    B -- mensaje normal --> E[Cargar sesion]
+    E --> F[Construir contexto]
+    F --> G[Ejecutar bucle agente]
+    G --> H{Hay tool calls}
+    H -- si --> I[Ejecutar tools]
+    I --> J[Agregar mensaje tool]
+    J --> G
+    H -- no --> K[Generar respuesta final]
+    K --> L[Guardar turno y sesion]
+    L --> M[Publicar salida]
+```
+
+## 2) Maquina de estados del procesamiento
+
+```mermaid
+stateDiagram-v2
+    [*] --> Idle
+    Idle --> Dispatching: llega mensaje
+    Dispatching --> Processing: lock activo
+    Processing --> CallingLLM: pedir respuesta
+    CallingLLM --> ExecutingTools: hay tool calls
+    ExecutingTools --> CallingLLM: resultado tool
+    CallingLLM --> Finalizing: sin tool calls
+    Finalizing --> Persisting: guardar datos
+    Persisting --> Publishing: enviar salida
+    Publishing --> Idle
+    Processing --> Cancelling: comando stop
+    Cancelling --> Publishing
+```
+
+## 3) Flujo de cancelacion por sesion
+
+```mermaid
+flowchart LR
+    A[Comando stop] --> B[Resolver clave de sesion]
+    B --> C[Buscar tareas activas]
+    C --> D[Cancelar tareas de sesion]
+    D --> E[Cancelar subagentes]
+    E --> F[Contar cancelaciones]
+    F --> G[Enviar confirmacion]
+```

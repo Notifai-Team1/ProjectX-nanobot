@@ -120,51 +120,51 @@ Objetivo: evitar ruido contextual y crecimiento explosivo del historial.
 
 ## Diagramas
 
-## 1) Flujo de datos end-to-end por mensaje
+## 1) Flujo de datos por mensaje
 
 ```mermaid
 flowchart TD
-    A[InboundMessage desde MessageBus] --> B{Slash command?}
-    B -- /stop --> C[_handle_stop]
-    B -- /new o /help --> D[Respuesta de control]
-    B -- Mensaje normal --> E[get_or_create Session]
-    E --> F[ContextBuilder + Session history + runtime context]
-    F --> G[_run_agent_loop]
-    G --> H{Tool calls?}
-    H -- Sí --> I[ToolRegistry.execute]
-    I --> J[Mensaje role=tool]
+    A[Mensaje entrante] --> B{Comando especial}
+    B -- stop --> C[Cancelar tareas]
+    B -- new o help --> D[Responder comando]
+    B -- mensaje normal --> E[Cargar sesion]
+    E --> F[Construir contexto]
+    F --> G[Ejecutar bucle agente]
+    G --> H{Hay tool calls}
+    H -- si --> I[Ejecutar tools]
+    I --> J[Agregar mensaje tool]
     J --> G
-    H -- No --> K[Respuesta final assistant]
-    K --> L[_save_turn + sessions.save]
-    L --> M[OutboundMessage al canal]
+    H -- no --> K[Generar respuesta final]
+    K --> L[Guardar turno y sesion]
+    L --> M[Publicar salida]
 ```
 
-## 2) Máquina de estados del procesamiento
+## 2) Maquina de estados del procesamiento
 
 ```mermaid
 stateDiagram-v2
     [*] --> Idle
-    Idle --> Dispatching: mensaje entrante
-    Dispatching --> Processing: lock adquirido
-    Processing --> CallingLLM: provider.chat
-    CallingLLM --> ExecutingTools: tool_calls presentes
-    ExecutingTools --> CallingLLM: inyectar role=tool
-    CallingLLM --> Finalizing: sin tool_calls
-    Finalizing --> Persisting: _save_turn / sessions.save
-    Persisting --> Publishing: publicar salida
+    Idle --> Dispatching: llega mensaje
+    Dispatching --> Processing: lock activo
+    Processing --> CallingLLM: pedir respuesta
+    CallingLLM --> ExecutingTools: hay tool calls
+    ExecutingTools --> CallingLLM: resultado tool
+    CallingLLM --> Finalizing: sin tool calls
+    Finalizing --> Persisting: guardar datos
+    Persisting --> Publishing: enviar salida
     Publishing --> Idle
-    Processing --> Cancelling: comando /stop
+    Processing --> Cancelling: comando stop
     Cancelling --> Publishing
 ```
 
-## 3) Flujo de cancelación por sesión
+## 3) Flujo de cancelacion por sesion
 
 ```mermaid
 flowchart LR
-    S[/stop recibido/] --> T[Resolver session_key]
-    T --> U[Buscar tasks activas]
-    U --> V[Cancelar tasks de la sesión]
-    V --> W[cancel_by_session en subagentes]
-    W --> X[Contabilizar tareas canceladas]
-    X --> Y[Enviar confirmación al usuario]
+    A[Comando stop] --> B[Resolver clave de sesion]
+    B --> C[Buscar tareas activas]
+    C --> D[Cancelar tareas de sesion]
+    D --> E[Cancelar subagentes]
+    E --> F[Contar cancelaciones]
+    F --> G[Enviar confirmacion]
 ```

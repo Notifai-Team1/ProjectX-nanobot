@@ -81,45 +81,44 @@ Así, `ToolRegistry` actúa como frontera uniforme entre decisión del modelo y 
 
 ## Diagramas
 
-## 1) Flujo de ejecución de tool call
+## 1) Flujo de ejecucion de tool call
 
 ```mermaid
 flowchart TD
-    A[Tool call del LLM] --> B[ToolRegistry.execute(name, params)]
-    B --> C{Tool existe?}
-    C -- No --> D[Retornar error textual]
-    C -- Sí --> E[validate_params con JSON Schema]
-    E --> F{Parámetros válidos?}
-    F -- No --> G[Retornar ValidationError textual]
-    F -- Sí --> H[await tool.execute(**params)]
-    H --> I{Resultado inicia con "Error"?}
-    I -- Sí --> J[Agregar hint de reintento]
-    I -- No --> K[Retornar resultado]
+    A[Tool call del modelo] --> B[Ejecutar en registry]
+    B --> C{Tool registrada}
+    C -- no --> D[Retornar error de tool]
+    C -- si --> E[Validar parametros]
+    E --> F{Parametros validos}
+    F -- no --> G[Retornar error de validacion]
+    F -- si --> H[Ejecutar tool]
+    H --> I{Resultado es error}
+    I -- si --> J[Agregar sugerencia de reintento]
+    I -- no --> K[Retornar resultado]
     J --> K
 ```
 
-## 2) Máquina de estados de una herramienta en registry
+## 2) Maquina de estados de tool en registry
 
 ```mermaid
 stateDiagram-v2
     [*] --> Unregistered
-    Unregistered --> Registered: register(tool)
-    Registered --> Registered: register reemplaza nombre existente
-    Registered --> AvailableForLLM: get_definitions
-    AvailableForLLM --> Executing: execute invocado
-    Executing --> AvailableForLLM: éxito
-    Executing --> AvailableForLLM: error controlado (texto)
-    Registered --> Unregistered: unregister(name)
+    Unregistered --> Registered: register
+    Registered --> Registered: register reemplazo
+    Registered --> Available: exponer definiciones
+    Available --> Executing: execute
+    Executing --> Available: exito
+    Executing --> Available: error controlado
+    Registered --> Unregistered: unregister
 ```
 
-## 3) Flujo de exposición de contratos al provider
+## 3) Flujo de contratos hacia provider
 
 ```mermaid
 flowchart LR
-    A[Tool instances] --> B[to_schema() por tool]
-    B --> C[get_definitions()]
-    C --> D[provider.chat(..., tools=...)]
-    D --> E[Modelo decide tool_calls]
-    E --> F[ToolRegistry.execute]
+    A[Instancias de tools] --> B[Generar schema]
+    B --> C[Obtener definiciones]
+    C --> D[Llamada chat con tools]
+    D --> E[Modelo emite tool calls]
+    E --> F[Ejecutar en registry]
 ```
-

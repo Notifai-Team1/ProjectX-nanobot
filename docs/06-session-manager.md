@@ -91,49 +91,48 @@ El orden de `list_sessions` es descendente por `updated_at`.
 
 ## Diagramas
 
-## 1) Flujo de datos de carga y guardado de sesión
+## 1) Flujo de carga y guardado de sesion
 
 ```mermaid
 flowchart TD
-    A[session_key] --> B[get_or_create]
-    B --> C{Está en cache?}
-    C -- Sí --> D[Retornar Session en memoria]
-    C -- No --> E[_load desde JSONL]
-    E --> F{Archivo válido?}
-    F -- Sí --> G[Reconstruir metadata + mensajes]
-    F -- No --> H[Crear Session nueva tolerante]
+    A[Clave de sesion] --> B[Get or create]
+    B --> C{Existe en cache}
+    C -- si --> D[Retornar sesion en memoria]
+    C -- no --> E[Cargar desde JSONL]
+    E --> F{Archivo valido}
+    F -- si --> G[Reconstruir metadata y mensajes]
+    F -- no --> H[Crear sesion nueva]
     G --> I[Guardar en cache]
     H --> I
-    I --> J[Uso por AgentLoop]
-    J --> K[save(session)]
-    K --> L[Reescribir metadata + mensajes en JSONL]
+    I --> J[Uso en agente]
+    J --> K[Guardar sesion]
+    K --> L[Escribir metadata y mensajes]
 ```
 
-## 2) Máquina de estados de una sesión
+## 2) Maquina de estados de una sesion
 
 ```mermaid
 stateDiagram-v2
     [*] --> New
     New --> Active: primer mensaje
-    Active --> Active: add_message
-    Active --> ConsolidatedWindow: last_consolidated avanza
-    ConsolidatedWindow --> Active: nuevos mensajes no consolidados
-    Active --> Cleared: clear()
-    ConsolidatedWindow --> Cleared: clear()
+    Active --> Active: add message
+    Active --> Consolidated: avanzar consolidado
+    Consolidated --> Active: llegan mensajes nuevos
+    Active --> Cleared: clear
+    Consolidated --> Cleared: clear
     Cleared --> Active: nuevo turno
 ```
 
-## 3) Flujo de construcción de historial para LLM
+## 3) Flujo de historial para LLM
 
 ```mermaid
 flowchart LR
-    A[Session.messages] --> B[Recorte desde last_consolidated]
-    B --> C[Aplicar ventana max_messages]
-    C --> D{Primer rol es user?}
-    D -- No --> E[Recortar hasta primer user]
-    D -- Sí --> F[Serialize mínimo]
+    A[Mensajes de sesion] --> B[Recorte por ultimo consolidado]
+    B --> C[Aplicar ventana maxima]
+    C --> D{Inicia con user}
+    D -- no --> E[Recortar hasta user]
+    D -- si --> F[Serializar mensajes]
     E --> F
-    F --> G[Incluir tool_calls/tool_call_id/name cuando aplica]
-    G --> H[Historial listo para provider]
+    F --> G[Incluir campos de tools]
+    G --> H[Historial listo]
 ```
-

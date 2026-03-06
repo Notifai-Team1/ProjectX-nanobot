@@ -86,3 +86,54 @@ El orden de `list_sessions` es descendente por `updated_at`.
 - `save()` reescribe archivo completo (simple y seguro, pero O(n) por tamaño de sesión).
 - Tolerancia de errores en lectura prioriza continuidad del sistema frente a sesiones dañadas.
 - `safe_filename` y normalización de `key` reducen riesgo de rutas inválidas.
+
+---
+
+## Diagramas
+
+## 1) Flujo de datos de carga y guardado de sesión
+
+```mermaid
+flowchart TD
+    A[session_key] --> B[get_or_create]
+    B --> C{Está en cache?}
+    C -- Sí --> D[Retornar Session en memoria]
+    C -- No --> E[_load desde JSONL]
+    E --> F{Archivo válido?}
+    F -- Sí --> G[Reconstruir metadata + mensajes]
+    F -- No --> H[Crear Session nueva tolerante]
+    G --> I[Guardar en cache]
+    H --> I
+    I --> J[Uso por AgentLoop]
+    J --> K[save(session)]
+    K --> L[Reescribir metadata + mensajes en JSONL]
+```
+
+## 2) Máquina de estados de una sesión
+
+```mermaid
+stateDiagram-v2
+    [*] --> New
+    New --> Active: primer mensaje
+    Active --> Active: add_message
+    Active --> ConsolidatedWindow: last_consolidated avanza
+    ConsolidatedWindow --> Active: nuevos mensajes no consolidados
+    Active --> Cleared: clear()
+    ConsolidatedWindow --> Cleared: clear()
+    Cleared --> Active: nuevo turno
+```
+
+## 3) Flujo de construcción de historial para LLM
+
+```mermaid
+flowchart LR
+    A[Session.messages] --> B[Recorte desde last_consolidated]
+    B --> C[Aplicar ventana max_messages]
+    C --> D{Primer rol es user?}
+    D -- No --> E[Recortar hasta primer user]
+    D -- Sí --> F[Serialize mínimo]
+    E --> F
+    F --> G[Incluir tool_calls/tool_call_id/name cuando aplica]
+    G --> H[Historial listo para provider]
+```
+

@@ -115,3 +115,56 @@ Objetivo: evitar ruido contextual y crecimiento explosivo del historial.
 - Inyectar proveedores LLM alternativos.
 - Ajustar políticas de iteración, consolidación y prompt.
 - Añadir nuevas rutas de control (nuevos slash commands).
+
+---
+
+## Diagramas
+
+## 1) Flujo de datos end-to-end por mensaje
+
+```mermaid
+flowchart TD
+    A[InboundMessage desde MessageBus] --> B{Slash command?}
+    B -- /stop --> C[_handle_stop]
+    B -- /new o /help --> D[Respuesta de control]
+    B -- Mensaje normal --> E[get_or_create Session]
+    E --> F[ContextBuilder + Session history + runtime context]
+    F --> G[_run_agent_loop]
+    G --> H{Tool calls?}
+    H -- Sí --> I[ToolRegistry.execute]
+    I --> J[Mensaje role=tool]
+    J --> G
+    H -- No --> K[Respuesta final assistant]
+    K --> L[_save_turn + sessions.save]
+    L --> M[OutboundMessage al canal]
+```
+
+## 2) Máquina de estados del procesamiento
+
+```mermaid
+stateDiagram-v2
+    [*] --> Idle
+    Idle --> Dispatching: mensaje entrante
+    Dispatching --> Processing: lock adquirido
+    Processing --> CallingLLM: provider.chat
+    CallingLLM --> ExecutingTools: tool_calls presentes
+    ExecutingTools --> CallingLLM: inyectar role=tool
+    CallingLLM --> Finalizing: sin tool_calls
+    Finalizing --> Persisting: _save_turn / sessions.save
+    Persisting --> Publishing: publicar salida
+    Publishing --> Idle
+    Processing --> Cancelling: comando /stop
+    Cancelling --> Publishing
+```
+
+## 3) Flujo de cancelación por sesión
+
+```mermaid
+flowchart LR
+    S[/stop recibido/] --> T[Resolver session_key]
+    T --> U[Buscar tasks activas]
+    U --> V[Cancelar tasks de la sesión]
+    V --> W[cancel_by_session en subagentes]
+    W --> X[Contabilizar tareas canceladas]
+    X --> Y[Enviar confirmación al usuario]
+```

@@ -1,0 +1,418 @@
+openapi: 3.0.3
+info:
+  title: nanobot Runtime API
+  version: 1.0.0
+  description: |
+    OpenAPI de referencia para integrar nanobot vía HTTP.
+    Este contrato documenta la API de fachada recomendada sobre el runtime actual
+    (MessageBus, SessionManager, MemoryStore y ToolRegistry).
+servers:
+  - url: http://localhost:8080
+    description: local
+
+tags:
+  - name: health
+  - name: messages
+  - name: sessions
+  - name: memory
+  - name: tools
+
+paths:
+  /health:
+    get:
+      tags: [health]
+      summary: Health check del runtime
+      responses:
+        '200':
+          description: Servicio operativo
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: ok
+                  version:
+                    type: string
+                    example: 0.1.0
+
+  /v1/messages/inbound:
+    post:
+      tags: [messages]
+      summary: Publicar mensaje de entrada
+      description: Encola un InboundMessage en el bus.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/InboundMessage'
+      responses:
+        '202':
+          description: Mensaje aceptado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AcceptedResponse'
+
+  /v1/messages/outbound/next:
+    get:
+      tags: [messages]
+      summary: Consumir siguiente mensaje de salida
+      description: Entrega el siguiente OutboundMessage disponible.
+      responses:
+        '200':
+          description: Mensaje listo
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OutboundMessage'
+        '204':
+          description: No hay mensajes disponibles
+
+  /v1/sessions:
+    get:
+      tags: [sessions]
+      summary: Listar sesiones
+      responses:
+        '200':
+          description: Sesiones encontradas
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/SessionSummary'
+
+  /v1/sessions/{sessionKey}:
+    get:
+      tags: [sessions]
+      summary: Obtener sesión completa
+      parameters:
+        - $ref: '#/components/parameters/SessionKey'
+      responses:
+        '200':
+          description: Sesión
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Session'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    delete:
+      tags: [sessions]
+      summary: Limpiar sesión
+      description: Limpia mensajes y reinicia last_consolidated.
+      parameters:
+        - $ref: '#/components/parameters/SessionKey'
+      responses:
+        '204':
+          description: Sesión limpiada
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /v1/sessions/{sessionKey}/history:
+    get:
+      tags: [sessions]
+      summary: Obtener historial apto para LLM
+      parameters:
+        - $ref: '#/components/parameters/SessionKey'
+        - in: query
+          name: maxMessages
+          schema:
+            type: integer
+            minimum: 1
+            default: 500
+      responses:
+        '200':
+          description: Historial no consolidado
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/SessionMessage'
+
+  /v1/memory:
+    get:
+      tags: [memory]
+      summary: Obtener memoria de largo plazo
+      responses:
+        '200':
+          description: Contenido de MEMORY md
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  content:
+                    type: string
+
+    put:
+      tags: [memory]
+      summary: Reemplazar memoria de largo plazo
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [content]
+              properties:
+                content:
+                  type: string
+      responses:
+        '204':
+          description: Memoria actualizada
+
+  /v1/memory/history:
+    post:
+      tags: [memory]
+      summary: Append manual a HISTORY
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [entry]
+              properties:
+                entry:
+                  type: string
+      responses:
+        '204':
+          description: Entrada agregada
+
+  /v1/memory/consolidate:
+    post:
+      tags: [memory]
+      summary: Ejecutar consolidación de memoria
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [sessionKey]
+              properties:
+                sessionKey:
+                  type: string
+                memoryWindow:
+                  type: integer
+                  default: 50
+                archiveAll:
+                  type: boolean
+                  default: false
+      responses:
+        '200':
+          description: Resultado consolidación
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+
+  /v1/tools:
+    get:
+      tags: [tools]
+      summary: Listar definiciones de tools
+      responses:
+        '200':
+          description: Definiciones
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items:
+                      type: object
+
+  /v1/tools/{toolName}/execute:
+    post:
+      tags: [tools]
+      summary: Ejecutar tool
+      parameters:
+        - in: path
+          name: toolName
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                params:
+                  type: object
+                  additionalProperties: true
+      responses:
+        '200':
+          description: Resultado de ejecución
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  result:
+                    oneOf:
+                      - type: string
+                      - type: object
+                      - type: array
+
+components:
+  parameters:
+    SessionKey:
+      in: path
+      name: sessionKey
+      required: true
+      schema:
+        type: string
+      description: Clave de sesión en formato channel chat o session override.
+
+  responses:
+    NotFound:
+      description: Recurso no encontrado
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+
+  schemas:
+    AcceptedResponse:
+      type: object
+      properties:
+        accepted:
+          type: boolean
+          example: true
+
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+          example: not found
+
+    InboundMessage:
+      type: object
+      required: [channel, sender_id, chat_id, content]
+      properties:
+        channel:
+          type: string
+          example: telegram
+        sender_id:
+          type: string
+          example: '123456'
+        chat_id:
+          type: string
+          example: '-1000001'
+        content:
+          type: string
+          example: Hola nanobot
+        timestamp:
+          type: string
+          format: date-time
+        media:
+          type: array
+          items:
+            type: string
+        metadata:
+          type: object
+          additionalProperties: true
+        session_key_override:
+          type: string
+          nullable: true
+
+    OutboundMessage:
+      type: object
+      required: [channel, chat_id, content]
+      properties:
+        channel:
+          type: string
+        chat_id:
+          type: string
+        content:
+          type: string
+        reply_to:
+          type: string
+          nullable: true
+        media:
+          type: array
+          items:
+            type: string
+        metadata:
+          type: object
+          additionalProperties: true
+
+    SessionMessage:
+      type: object
+      required: [role, content]
+      properties:
+        role:
+          type: string
+          enum: [system, user, assistant, tool]
+        content:
+          oneOf:
+            - type: string
+            - type: array
+              items:
+                type: object
+                additionalProperties: true
+        timestamp:
+          type: string
+        tool_calls:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+        tool_call_id:
+          type: string
+        name:
+          type: string
+
+    Session:
+      type: object
+      required: [key, messages, created_at, updated_at, last_consolidated]
+      properties:
+        key:
+          type: string
+        messages:
+          type: array
+          items:
+            $ref: '#/components/schemas/SessionMessage'
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+        metadata:
+          type: object
+          additionalProperties: true
+        last_consolidated:
+          type: integer
+          minimum: 0
+
+    SessionSummary:
+      type: object
+      properties:
+        key:
+          type: string
+        updated_at:
+          type: string
+          format: date-time
+        message_count:
+          type: integer

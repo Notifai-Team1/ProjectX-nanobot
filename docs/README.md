@@ -17,3 +17,5 @@ Todos incluyen análisis en español y diagramas Mermaid solicitados.
 11. [`10-bdd-especificaciones.md`](./10-bdd-especificaciones.md)
 12. [`11-diagramas-actividad.md`](./11-diagramas-actividad.md)
 13. [`12-secuencias-happy-path.md`](./12-secuencias-happy-path.md)
+14. [`13-api-openapi.md`](./13-api-openapi.md)
+15. [`openapi.yaml`](./openapi.yaml)
